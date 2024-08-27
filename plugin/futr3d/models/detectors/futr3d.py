@@ -10,7 +10,7 @@ from mmdet3d.models import builder
 from mmdet3d.models.builder import DETECTORS
 from mmdet3d.models.detectors import Base3DDetector, MVXTwoStageDetector
 from mmdet3d.core import bbox3d2result, merge_aug_bboxes_3d
-from plugin.fudet.models.utils.grid_mask import GridMask
+from plugin.futr3d.models.utils.grid_mask import GridMask
 
 @DETECTORS.register_module()
 class FUTR3D(MVXTwoStageDetector):
@@ -293,20 +293,24 @@ class FUTR3D(MVXTwoStageDetector):
         Returns:
             dict: Losses of each branch.
         """
-        outputs_classes, outputs_coords, aux_outs = \
-            self.pts_bbox_head(pts_feats, img_feats, radar_feats, img_metas)
-        loss_inputs = (outputs_classes, outputs_coords, gt_bboxes_3d, gt_labels_3d, img_metas)
+        # outputs_classes, outputs_coords, aux_outs = \
+        #     self.pts_bbox_head(pts_feats, img_feats, radar_feats, img_metas)
+        # loss_inputs = (outputs_classes, outputs_coords, gt_bboxes_3d, gt_labels_3d, img_metas)
         
+        # losses = self.pts_bbox_head.loss(
+        #     *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        
+        # if aux_outs is not None:
+        #     aux_loss_inputs = [gt_bboxes_3d, gt_labels_3d, aux_outs]
+        #     aux_losses = self.pts_bbox_head.aux_head.loss(*aux_loss_inputs)
+        #     for k, v in aux_losses.items():
+        #         losses[f'aux_{k}'] = v * self.aux_weight
+        # return losses
+        outs = self.pts_bbox_head(radar_feats)
+        loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.pts_bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
-        
-        if aux_outs is not None:
-            aux_loss_inputs = [gt_bboxes_3d, gt_labels_3d, aux_outs]
-            aux_losses = self.pts_bbox_head.aux_head.loss(*aux_loss_inputs)
-            for k, v in aux_losses.items():
-                losses[f'aux_{k}'] = v * self.aux_weight
         return losses
-    
     def forward_test(self, img_metas, points=None, img=None, radar=None, **kwargs):
         """
         Args:
@@ -326,7 +330,7 @@ class FUTR3D(MVXTwoStageDetector):
             if not isinstance(var, list):
                 raise TypeError('{} must be a list, but got {}'.format(
                     name, type(var))) 
-        num_augs = len(points) if points is not None else len(img)
+        # num_augs = len(points) if points is not None else len(img)
         img = [img] if img is None else img
         points = [points] if points is None else points
         radar = [radar] if radar is None else radar
@@ -351,12 +355,23 @@ class FUTR3D(MVXTwoStageDetector):
         outs = self.pts_bbox_head(pts_feats, img_feats, radar_feats, img_metas)
         return outs
 
-    def simple_test_pts(self, pts_feats, img_feats, radar_feats, img_metas, rescale=False):
-        """Test function of point cloud branch."""
-        outputs_classes, outputs_coords, aux_outs = \
-            self.pts_bbox_head(pts_feats, img_feats, radar_feats, img_metas)
-        outs = (outputs_classes, outputs_coords)
+    # def simple_test_pts(self, pts_feats, img_feats, radar_feats, img_metas, rescale=False):
+    #     """Test function of point cloud branch."""
+    #     # outputs_classes, outputs_coords, aux_outs = \
+    #     #     self.pts_bbox_head(pts_feats, img_feats, radar_feats, img_metas)
+
+    #     outs = (outputs_classes, outputs_coords)
         
+    #     bbox_list = self.pts_bbox_head.get_bboxes(
+    #         *outs, img_metas, rescale=rescale)
+    #     bbox_results = [
+    #         bbox3d2result(bboxes, scores, labels)
+    #         for bboxes, scores, labels in bbox_list
+    #     ]
+    #     return bbox_results
+    def simple_test_pts(self,pts_feats, img_feats, radar_feats, img_metas, rescale=False):
+        """Test function of point cloud branch."""
+        outs = self.pts_bbox_head(radar_feats)
         bbox_list = self.pts_bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
         bbox_results = [
@@ -373,7 +388,7 @@ class FUTR3D(MVXTwoStageDetector):
         bbox_list = [dict() for i in range(len(img_metas))]
         
         bbox_pts = self.simple_test_pts(
-            pts_feats, img_feats, radar_feats, img_metas, rescale=rescale)
+            pts_feats, img_feats, radar_feats, img_metas, rescale=rescale) ##true
         for result_dict, pts_bbox in zip(bbox_list, bbox_pts):
             result_dict['pts_bbox'] = pts_bbox
         
